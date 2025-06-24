@@ -3368,7 +3368,7 @@ export class Task {
 								try {
 									const terminal = vscode.window.createTerminal({
 										name: terminalName || `Cline Terminal ${Date.now()}`,
-										cwd: this.cwd,
+										cwd: cwd,
 									})
 
 									// 显示终端
