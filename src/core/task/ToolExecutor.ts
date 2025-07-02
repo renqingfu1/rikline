@@ -176,6 +176,8 @@ export class ToolExecutor {
 				return `[${block.name} for '${block.params.path}']`
 			case "web_fetch":
 				return `[${block.name} for '${block.params.url}']`
+			case "refactor":
+				return `[${block.name} ${block.params.operation} for '${block.params.target}' in '${block.params.file_path}']`
 		}
 	}
 
@@ -2073,6 +2075,117 @@ export class ToolExecutor {
 				} catch (error) {
 					await this.urlContentFetcher.closeBrowser() // Ensure browser is closed on error
 					await this.handleError("fetching web content", error, block)
+					await this.saveCheckpoint()
+					break
+				}
+			}
+			case "refactor": {
+				const filePath: string | undefined = block.params.file_path
+				const operation: string | undefined = block.params.operation
+				const target: string | undefined = block.params.target
+
+				const sharedMessageProps: ClineSayTool = {
+					tool: "refactorCode",
+					path: getReadablePath(this.cwd, this.removeClosingTag(block, "file_path", filePath)),
+					content: `${operation} ${target}`,
+					operationIsLocatedInWorkspace: isLocatedInWorkspace(filePath),
+				}
+
+				try {
+					if (block.partial) {
+						const partialMessage = JSON.stringify(sharedMessageProps)
+						if (this.shouldAutoApproveToolWithPath(block.name, filePath)) {
+							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+							await this.say("tool", partialMessage, undefined, undefined, block.partial)
+						} else {
+							this.removeLastPartialMessageIfExistsWithType("say", "tool")
+							await this.ask("tool", partialMessage, block.partial).catch(() => {})
+						}
+						break
+					} else {
+						if (!filePath || !operation || !target) {
+							this.taskState.consecutiveMistakeCount++
+							const missingParam = !filePath ? "file_path" : !operation ? "operation" : "target"
+							this.pushToolResult(await this.sayAndCreateMissingParamError("refactor", missingParam), block)
+							await this.saveCheckpoint()
+							break
+						}
+
+						const accessAllowed = this.clineIgnoreController.validateAccess(filePath)
+						if (!accessAllowed) {
+							await this.say("clineignore_error", filePath)
+							this.pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(filePath)), block)
+							await this.saveCheckpoint()
+							break
+						}
+
+						this.taskState.consecutiveMistakeCount = 0
+						const completeMessage = JSON.stringify(sharedMessageProps)
+
+						if (this.shouldAutoApproveToolWithPath(block.name, filePath)) {
+							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+							await this.say("tool", completeMessage, undefined, undefined, false)
+							this.taskState.consecutiveAutoApprovedRequestsCount++
+						} else {
+							showNotificationForApprovalIfAutoApprovalEnabled(
+								`Cline wants to refactor code in ${path.basename(filePath)}`,
+								this.autoApprovalSettings.enabled,
+								this.autoApprovalSettings.enableNotifications,
+							)
+							this.removeLastPartialMessageIfExistsWithType("say", "tool")
+							const didApprove = await this.askApproval("tool", block, completeMessage)
+							if (!didApprove) {
+								await this.saveCheckpoint()
+								break
+							}
+						}
+
+						// 执行重构操作
+						const { RefactorService } = await import("../../services/refactor")
+						const refactorService = new RefactorService(this.cwd)
+
+						const refactorOperation = {
+							operation: operation,
+							target: target,
+							filePath: filePath,
+							newName: this.removeClosingTag(block, "new_name", block.params.new_name),
+							startLine: block.params.start_line ? parseInt(block.params.start_line) : undefined,
+							endLine: block.params.end_line ? parseInt(block.params.end_line) : undefined,
+							destinationFile: this.removeClosingTag(block, "destination_file", block.params.destination_file),
+							destinationLine: block.params.destination_line ? parseInt(block.params.destination_line) : undefined,
+							methodName: this.removeClosingTag(block, "method_name", block.params.method_name),
+							variableName: this.removeClosingTag(block, "variable_name", block.params.variable_name),
+							interfaceName: this.removeClosingTag(block, "interface_name", block.params.interface_name),
+							previewOnly: block.params.preview_only === "true",
+							preserveComments: block.params.preserve_comments !== "false",
+							updateReferences: block.params.update_references !== "false",
+						}
+
+						const result = await refactorService.executeRefactor(refactorOperation)
+
+						if (result.success) {
+							let resultMessage = result.message
+							if (result.changes && result.changes.length > 0) {
+								resultMessage += "\n\n修改的文件:\n"
+								for (const change of result.changes) {
+									resultMessage += `- ${change.file}: ${change.description}\n`
+								}
+							}
+							if (result.warnings && result.warnings.length > 0) {
+								resultMessage += "\n\n警告:\n" + result.warnings.join("\n")
+							}
+							this.pushToolResult(formatResponse.toolResult(resultMessage), block)
+						} else {
+							const errorMessage =
+								result.message + (result.errors ? "\n\n错误详情:\n" + result.errors.join("\n") : "")
+							this.pushToolResult(formatResponse.toolError(errorMessage), block)
+						}
+
+						await this.saveCheckpoint()
+						break
+					}
+				} catch (error) {
+					await this.handleError("executing refactor operation", error, block)
 					await this.saveCheckpoint()
 					break
 				}

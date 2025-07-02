@@ -28,6 +28,7 @@ export const toolUseNames = [
 	"report_bug",
 	"new_rule",
 	"web_fetch",
+	"refactor",
 ] as const
 
 // Converts array of tool call names into a union type ("execute_command" | "read_file" | ...)
@@ -60,6 +61,22 @@ export const toolParamNames = [
 	"steps_to_reproduce",
 	"api_request_output",
 	"additional_context",
+	"file_path",
+	"operation",
+	"target",
+	"new_name",
+	"start_line",
+	"end_line",
+	"destination_file",
+	"destination_line",
+	"method_name",
+	"variable_name",
+	"parameters",
+	"interface_name",
+	"class_names",
+	"preview_only",
+	"preserve_comments",
+	"update_references",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

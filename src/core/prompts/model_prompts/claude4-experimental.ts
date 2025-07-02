@@ -25,6 +25,7 @@ import { attemptCompletionToolDefinition } from "@core/tools/attemptCompletionTo
 import { browserActionToolDefinition } from "@core/tools/browserActionTool"
 import { newTaskToolDefinition } from "@core/tools/newTaskTool"
 import { editToolDefinition } from "@/core/tools/editTool"
+import { refactorToolDefinition } from "@/core/tools/refactorTool"
 
 export const SYSTEM_PROMPT_CLAUDE4_EXPERIMENTAL = async (
 	cwd: string,
@@ -339,7 +340,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 		accessMcpResourceToolDefinition,
 		loadMcpDocumentationTool,
 		newTaskToolDefinition,
-		editToolDefinition,
+		refactorToolDefinition,
 	]
 	if (supportsBrowserUse) {
 		tools.push(browserActionTool)

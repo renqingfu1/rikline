@@ -167,6 +167,7 @@ export interface ClineSayTool {
 		| "listCodeDefinitionNames"
 		| "searchFiles"
 		| "webFetch"
+		| "refactorCode"
 	path?: string
 	diff?: string
 	content?: string

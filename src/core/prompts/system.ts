@@ -272,6 +272,41 @@ Usage:
 <response>Your response here</response>
 </plan_mode_respond>
 
+## refactor
+Description: 执行代码重构操作，包括重命名、提取方法、提取变量、内联变量、移动代码等。这个工具可以帮助改善代码结构和可维护性。
+Parameters:
+- operation: (required) 重构操作类型。支持的操作: "rename" (重命名), "extract_method" (提取方法), "extract_variable" (提取变量), "inline_variable" (内联变量), "move_code" (移动代码), "extract_interface" (提取接口), "add_parameter" (添加参数), "remove_parameter" (移除参数), "change_signature" (修改签名), "split_class" (拆分类), "merge_classes" (合并类)
+- target: (required) 重构的目标对象，比如变量名、方法名、类名或表达式
+- file_path: (required) 要重构的文件路径 (相对于当前工作目录 ${cwd.toPosix()})
+- new_name: (optional) 新名称 (用于重命名操作)
+- start_line: (optional) 起始行号 (用于提取方法、移动代码等操作)
+- end_line: (optional) 结束行号 (用于提取方法、移动代码等操作)
+- destination_file: (optional) 目标文件路径 (用于移动代码操作)
+- destination_line: (optional) 目标行号 (用于移动代码操作)
+- method_name: (optional) 新方法名称 (用于提取方法操作)
+- variable_name: (optional) 新变量名称 (用于提取变量操作)
+- interface_name: (optional) 新接口名称 (用于提取接口操作)
+- preview_only: (optional) 是否仅预览，不实际执行重构 (true/false，默认false)
+- preserve_comments: (optional) 是否保留注释 (true/false，默认true)
+- update_references: (optional) 是否更新引用 (true/false，默认true)
+Usage:
+<refactor>
+<operation>重构操作类型</operation>
+<target>重构目标</target>
+<file_path>文件路径</file_path>
+<new_name>新名称 (可选)</new_name>
+<start_line>起始行号 (可选)</start_line>
+<end_line>结束行号 (可选)</end_line>
+<destination_file>目标文件路径 (可选)</destination_file>
+<destination_line>目标行号 (可选)</destination_line>
+<method_name>方法名称 (可选)</method_name>
+<variable_name>变量名称 (可选)</variable_name>
+<interface_name>接口名称 (可选)</interface_name>
+<preview_only>仅预览 (可选)</preview_only>
+<preserve_comments>保留注释 (可选)</preserve_comments>
+<update_references>更新引用 (可选)</update_references>
+</refactor>
+
 ## load_mcp_documentation
 Description: Load documentation about creating MCP servers. This tool should be used when the user requests to create or install an MCP server (the user may ask you something along the lines of "add a tool" that does some function, in other words to create an MCP server that provides tools and resources that may connect to external APIs for example. You have the ability to create an MCP server and add it to a configuration file that will then expose the tools and resources for you to use with \`use_mcp_tool\` and \`access_mcp_resource\`). The documentation provides detailed information about the MCP server creation process, including setup instructions, best practices, and examples.
 Parameters: None
@@ -406,6 +441,16 @@ return (
 }
 </arguments>
 </use_mcp_tool>
+
+## Example 7: Requesting to refactor code
+
+<refactor>
+<operation>rename</operation>
+<target>oldVariableName</target>
+<file_path>src/components/Component.js</file_path>
+<new_name>newVariableName</new_name>
+<update_references>true</update_references>
+</refactor>
 
 # Tool Use Guidelines
 
