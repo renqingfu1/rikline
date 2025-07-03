@@ -1,18 +1,11 @@
 import React from "react"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import { useCodeReviewStore } from "../../stores/codeReviewStore"
+import { vscode } from "@/utils/vscode"
 
 interface CodeReviewProps {
 	content?: string
 	path?: string
-}
-
-declare global {
-	interface Window {
-		vscode: {
-			postMessage: (message: any) => void
-		}
-	}
 }
 
 const CodeReviewResult: React.FC<CodeReviewProps> = ({ content: propContent, path }) => {
@@ -130,20 +123,18 @@ const CodeReviewResult: React.FC<CodeReviewProps> = ({ content: propContent, pat
 		}
 	}
 
-	const handleExportReport = () => {
-		if (finalContent) {
-			try {
-				// 使用 VS Code 的消息传递机制来处理文件导出
-				window.vscode.postMessage({
-					type: "exportReport",
-					content: finalContent,
-					filename: `code-review-report-${new Date().toISOString().split("T")[0]}.md`,
-				})
-			} catch (error) {
-				console.error("导出失败:", error)
-				// 可以在这里添加一个提示给用户
-				alert("导出失败，请稍后重试")
-			}
+	const handleExportReport = async () => {
+		try {
+			const filename = `code_review_report_${new Date().toISOString().replace(/[:.]/g, "-")}.md`
+
+			// 发送消息给扩展处理文件导出，包含当前路径信息
+			vscode.postMessage({
+				type: "exportReport",
+				content: finalContent,
+				filename: filename,
+			})
+		} catch (error) {
+			console.error("导出失败:", error)
 		}
 	}
 
