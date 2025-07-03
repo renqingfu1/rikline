@@ -7,6 +7,14 @@ interface CodeReviewProps {
 	path?: string
 }
 
+declare global {
+	interface Window {
+		vscode: {
+			postMessage: (message: any) => void
+		}
+	}
+}
+
 const CodeReviewResult: React.FC<CodeReviewProps> = ({ content: propContent, path }) => {
 	const { loading, error, content: storeContent } = useCodeReviewStore()
 
@@ -124,15 +132,18 @@ const CodeReviewResult: React.FC<CodeReviewProps> = ({ content: propContent, pat
 
 	const handleExportReport = () => {
 		if (finalContent) {
-			const blob = new Blob([finalContent], { type: "text/markdown" })
-			const url = URL.createObjectURL(blob)
-			const a = document.createElement("a")
-			a.href = url
-			a.download = `code-review-report-${new Date().toISOString().split("T")[0]}.md`
-			document.body.appendChild(a)
-			a.click()
-			document.body.removeChild(a)
-			URL.revokeObjectURL(url)
+			try {
+				// 使用 VS Code 的消息传递机制来处理文件导出
+				window.vscode.postMessage({
+					type: "exportReport",
+					content: finalContent,
+					filename: `code-review-report-${new Date().toISOString().split("T")[0]}.md`,
+				})
+			} catch (error) {
+				console.error("导出失败:", error)
+				// 可以在这里添加一个提示给用户
+				alert("导出失败，请稍后重试")
+			}
 		}
 	}
 

@@ -741,10 +741,16 @@ export const ChatRowContent = ({
 									: "Cline performed code review on:"}
 							</span>
 						</div>
-						<CodeReviewResult content={tool.content || ""} path={tool.path} />
-						<div style={{ paddingTop: 5, fontSize: "0.9em", opacity: 0.8 }}>
-							{tool.content ? tool.content : "No content available"}
-						</div>
+						{message.type === "ask" ? (
+							<div>{tool.content}</div>
+						) : (
+							<div>
+								<CodeReviewResult content={tool.content || ""} path={tool.path} />
+								<div style={{ paddingTop: 5, fontSize: "0.9em", opacity: 0.8 }}>
+									{tool.content ? tool.content : "No content available"}
+								</div>
+							</div>
+						)}
 					</>
 				)
 			default:

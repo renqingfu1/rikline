@@ -251,6 +251,13 @@ export class Controller {
 				break
 			}
 
+			case "exportReport": {
+				if (message.content && message.filename) {
+					await this.handleExportReport(message.content, message.filename)
+				}
+				break
+			}
+
 			// Add more switch case statements here as more webview message commands
 			// are created within the webview context (i.e. inside media/main.js)
 		}
@@ -1200,4 +1207,29 @@ Commit message:`
 	}
 
 	// dev
+
+	/**
+	 * 处理导出代码审查报告
+	 */
+	private async handleExportReport(content: string, filename: string) {
+		try {
+			// 让用户选择保存位置
+			const uri = await vscode.window.showSaveDialog({
+				defaultUri: vscode.Uri.file(filename),
+				filters: {
+					Markdown: ["md"],
+					"All Files": ["*"],
+				},
+			})
+
+			if (uri) {
+				// 写入文件
+				const encoder = new TextEncoder()
+				await vscode.workspace.fs.writeFile(uri, encoder.encode(content))
+				vscode.window.showInformationMessage("报告已成功导出！")
+			}
+		} catch (error) {
+			vscode.window.showErrorMessage("导出报告失败：" + (error instanceof Error ? error.message : String(error)))
+		}
+	}
 }

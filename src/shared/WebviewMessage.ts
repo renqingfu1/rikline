@@ -15,8 +15,10 @@ export interface WebviewMessage {
 		| "clearAllTaskHistory"
 		| "grpc_request"
 		| "grpc_request_cancel"
+		| "exportReport"
 
 	text?: string
+	content?: string
 	disabled?: boolean
 	apiConfiguration?: ApiConfiguration
 	images?: string[]

@@ -2273,6 +2273,9 @@ export class ToolExecutor {
 							this.cwd,
 						)
 
+						sharedMessageProps.content = result
+						await this.say("tool", JSON.stringify(sharedMessageProps), undefined, undefined, block.partial)
+
 						this.pushToolResult(formatResponse.toolResult(result), block)
 						await this.saveCheckpoint()
 						break
