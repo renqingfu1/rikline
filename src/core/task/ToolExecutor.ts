@@ -35,6 +35,7 @@ import { ToolResponse, USE_EXPERIMENTAL_CLAUDE4_FEATURES } from "."
 import { serializeError } from "serialize-error"
 import * as path from "path"
 import { extractTextFromFile, processFilesIntoText } from "@integrations/misc/extract-text"
+import { executeCodeReview } from "../tools/codeReviewTool"
 import { COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { constructNewFileContent } from "../assistant-message/diff"
@@ -178,6 +179,8 @@ export class ToolExecutor {
 				return `[${block.name} for '${block.params.url}']`
 			case "refactor":
 				return `[${block.name} ${block.params.operation} for '${block.params.target}' in '${block.params.file_path}']`
+			case "code_review":
+				return `[${block.name} for '${block.params.target_path}']`
 		}
 	}
 
@@ -2186,6 +2189,96 @@ export class ToolExecutor {
 					}
 				} catch (error) {
 					await this.handleError("executing refactor operation", error, block)
+					await this.saveCheckpoint()
+					break
+				}
+			}
+			case "code_review": {
+				const targetPath: string | undefined = block.params.target_path
+				const analysisType: string | undefined = block.params.analysis_type || "file"
+				const includePatterns: string | undefined = block.params.include_patterns
+				const severityFilter: string | undefined = block.params.severity_filter || "all"
+				const issueTypes: string | undefined = block.params.issue_types
+
+				const sharedMessageProps: ClineSayTool = {
+					tool: "codeReview",
+					path: getReadablePath(this.cwd, this.removeClosingTag(block, "target_path", targetPath)),
+					content: `Code review analysis (${analysisType})`,
+					operationIsLocatedInWorkspace: isLocatedInWorkspace(targetPath),
+				}
+
+				try {
+					if (block.partial) {
+						const partialMessage = JSON.stringify(sharedMessageProps)
+						if (this.shouldAutoApproveToolWithPath(block.name, targetPath)) {
+							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+							await this.say("tool", partialMessage, undefined, undefined, block.partial)
+						} else {
+							this.removeLastPartialMessageIfExistsWithType("say", "tool")
+							await this.ask("tool", partialMessage, block.partial).catch(() => {})
+						}
+						break
+					} else {
+						if (!targetPath) {
+							this.taskState.consecutiveMistakeCount++
+							this.pushToolResult(await this.sayAndCreateMissingParamError("code_review", "target_path"), block)
+							await this.saveCheckpoint()
+							break
+						}
+
+						const accessAllowed = this.clineIgnoreController.validateAccess(targetPath)
+						if (!accessAllowed) {
+							await this.say("clineignore_error", targetPath)
+							this.pushToolResult(formatResponse.toolError(formatResponse.clineIgnoreError(targetPath)), block)
+							await this.saveCheckpoint()
+							break
+						}
+
+						this.taskState.consecutiveMistakeCount = 0
+						const completeMessage = JSON.stringify(sharedMessageProps)
+
+						if (this.shouldAutoApproveToolWithPath(block.name, targetPath)) {
+							this.removeLastPartialMessageIfExistsWithType("ask", "tool")
+							await this.say("tool", completeMessage, undefined, undefined, false)
+							this.taskState.consecutiveAutoApprovedRequestsCount++
+							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, true, true)
+						} else {
+							showNotificationForApprovalIfAutoApprovalEnabled(
+								`Cline wants to perform code review on ${path.basename(targetPath)}`,
+								this.autoApprovalSettings.enabled,
+								this.autoApprovalSettings.enableNotifications,
+							)
+							this.removeLastPartialMessageIfExistsWithType("say", "tool")
+							const didApprove = await this.askApproval("tool", block, completeMessage)
+							if (!didApprove) {
+								await this.saveCheckpoint()
+								telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, false)
+								break
+							}
+							telemetryService.captureToolUsage(this.taskId, block.name, this.api.getModel().id, false, true)
+						}
+
+						// 执行代码审查
+						const includePatternsParsed = includePatterns
+							? includePatterns.split(",").map((p) => p.trim())
+							: undefined
+						const issueTypesParsed = issueTypes ? (issueTypes.split(",").map((p) => p.trim()) as any[]) : undefined
+
+						const result = await executeCodeReview(
+							targetPath,
+							analysisType as "file" | "directory",
+							includePatternsParsed,
+							severityFilter as any,
+							issueTypesParsed,
+							this.cwd,
+						)
+
+						this.pushToolResult(formatResponse.toolResult(result), block)
+						await this.saveCheckpoint()
+						break
+					}
+				} catch (error) {
+					await this.handleError("performing code review", error, block)
 					await this.saveCheckpoint()
 					break
 				}

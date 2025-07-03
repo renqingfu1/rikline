@@ -168,6 +168,7 @@ export interface ClineSayTool {
 		| "searchFiles"
 		| "webFetch"
 		| "refactorCode"
+		| "codeReview"
 	path?: string
 	diff?: string
 	content?: string

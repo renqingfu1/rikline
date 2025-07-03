@@ -14,6 +14,7 @@ import { readToolDefinition } from "@core/tools/readTool"
 import { writeToolDefinition } from "@core/tools/writeTool"
 import { lsToolDefinition } from "@core/tools/lsTool"
 import { grepToolDefinition } from "@core/tools/grepTool"
+import { codeReviewToolDefinition } from "@core/tools/codeReviewTool"
 import { webFetchToolDefinition } from "@core/tools/webFetchTool"
 import { askQuestionToolDefinition } from "@core/tools/askQuestionTool"
 import { useMCPToolDefinition } from "@core/tools/useMcpTool"
@@ -334,6 +335,7 @@ You accomplish a given task iteratively, breaking it down into clear steps and w
 		bashTool,
 		lsToolDefinition,
 		grepToolDefinition,
+		codeReviewToolDefinition,
 		webFetchToolDefinition,
 		listCodeDefinitionNamesTool,
 		useMCPToolDefinition,

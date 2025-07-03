@@ -283,6 +283,31 @@ Usage:
 <load_mcp_documentation>
 </load_mcp_documentation>
 
+## code_review
+Description: 执行全面的代码审查分析，包括代码质量、安全性、性能和风格检查。该工具可以分析单个文件或整个目录，提供详细的问题报告和改进建议。
+
+功能特性：
+- 代码质量分析：检测代码异味、复杂度和可维护性问题
+- 安全漏洞检测：识别潜在的安全风险和最佳实践违反
+- 性能优化建议：发现性能瓶颈和优化机会
+- 代码风格检查：确保代码风格的一致性
+- 智能问题分类：按严重程度和类型分类问题
+
+Parameters:
+- target_path: (required) 要审查的文件或目录路径（相对于当前工作目录 ${cwd.toPosix()}）
+- analysis_type: (optional) 分析类型，"file" 或 "directory"（默认"file"）
+- include_patterns: (optional) 包含的文件模式，逗号分隔（如 "*.ts,*.js"）
+- severity_filter: (optional) 严重程度过滤，"all", "low", "medium", "high", "critical"（默认"all"）
+- issue_types: (optional) 问题类型过滤，逗号分隔（如 "security,performance,quality"）
+
+Usage:
+<code_review>
+<target_path>src/components</target_path>
+<analysis_type>directory</analysis_type>
+<severity_filter>high</severity_filter>
+<issue_types>security,performance</issue_types>
+</code_review>
+
 ## refactor
 Description: 自动化重构工具，支持多种代码重构操作。该工具可以帮助改善代码结构、提高可读性和可维护性，同时保持功能不变。
 
@@ -477,6 +502,15 @@ return (
 <start_line>45</start_line>
 <end_line>55</end_line>
 </refactor>
+
+## Example 9: Performing code review
+
+<code_review>
+<target_path>src/components</target_path>
+<analysis_type>directory</analysis_type>
+<severity_filter>high</severity_filter>
+<issue_types>security,performance</issue_types>
+</code_review>
 
 # Tool Use Guidelines
 

@@ -651,6 +651,18 @@ export async function activate(context: vscode.ExtensionContext) {
 		}),
 	)
 
+	// 添加代码审查消息处理命令
+	context.subscriptions.push(
+		vscode.commands.registerCommand("cline.postMessageToWebview", (message: any) => {
+			const activeInstance = WebviewProvider.getActiveInstance()
+			if (activeInstance && activeInstance.controller) {
+				activeInstance.controller.postMessageToWebview(message)
+			} else {
+				console.error("[DEBUG] No active instance found, cannot send code review message")
+			}
+		}),
+	)
+
 	return createClineAPI(outputChannel, sidebarWebview.controller)
 }
 

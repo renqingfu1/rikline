@@ -39,6 +39,7 @@ import NewTaskPreview from "./NewTaskPreview"
 import ReportBugPreview from "./ReportBugPreview"
 import UserMessage from "./UserMessage"
 import QuoteButton from "./QuoteButton"
+import CodeReviewResult from "./CodeReviewResult"
 
 const normalColor = "var(--vscode-foreground)"
 const errorColor = "var(--vscode-errorForeground)"
@@ -725,6 +726,25 @@ export const ChatRowContent = ({
 						</div>
 						{/* Displaying the 'content' which now holds "Fetching URL: [URL]" */}
 						{/* <div style={{ paddingTop: 5, fontSize: '0.9em', opacity: 0.8 }}>{tool.content}</div> */}
+					</>
+				)
+			case "codeReview":
+				return (
+					<>
+						<div style={headerStyle}>
+							{toolIcon("checklist")}
+							{tool.operationIsLocatedInWorkspace === false &&
+								toolIcon("sign-out", "yellow", -90, "This is outside of your workspace")}
+							<span style={{ fontWeight: "bold" }}>
+								{message.type === "ask"
+									? "Cline wants to perform code review on:"
+									: "Cline performed code review on:"}
+							</span>
+						</div>
+						<CodeReviewResult content={tool.content || ""} path={tool.path} />
+						<div style={{ paddingTop: 5, fontSize: "0.9em", opacity: 0.8 }}>
+							{tool.content ? tool.content : "No content available"}
+						</div>
 					</>
 				)
 			default:
