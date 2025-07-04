@@ -318,7 +318,22 @@
 		},
 		"configuration": {
 			"title": "Cline",
-			"properties": {}
+			"properties": {
+				"codeReview.thirdParty.configuredProviders": {
+					"type": "object",
+					"default": {},
+					"description": "配置第三方代码审查提供商",
+					"additionalProperties": true
+				},
+				"codeReview.thirdParty.enabledProviders": {
+					"type": "array",
+					"default": [],
+					"description": "启用的第三方代码审查提供商列表",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
 		}
 	},
 	"scripts": {

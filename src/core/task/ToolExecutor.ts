@@ -2266,11 +2266,11 @@ export class ToolExecutor {
 
 						const result = await executeCodeReview(
 							targetPath,
+							this.cwd,
 							analysisType as "file" | "directory",
 							includePatternsParsed,
 							severityFilter as any,
 							issueTypesParsed,
-							this.cwd,
 						)
 
 						sharedMessageProps.content = result

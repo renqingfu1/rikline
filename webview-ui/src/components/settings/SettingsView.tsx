@@ -8,7 +8,17 @@ import { ExtensionMessage } from "@shared/ExtensionMessage"
 import { EmptyRequest, StringRequest } from "@shared/proto/common"
 import { PlanActMode, ResetStateRequest, TogglePlanActModeRequest, UpdateSettingsRequest } from "@shared/proto/state"
 import { VSCodeButton, VSCodeCheckbox, VSCodeLink, VSCodeTextArea } from "@vscode/webview-ui-toolkit/react"
-import { CheckCheck, FlaskConical, Info, LucideIcon, Settings, SquareMousePointer, SquareTerminal, Webhook } from "lucide-react"
+import {
+	CheckCheck,
+	FlaskConical,
+	Info,
+	LucideIcon,
+	Settings,
+	SquareMousePointer,
+	SquareTerminal,
+	Webhook,
+	Shield,
+} from "lucide-react"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useEvent } from "react-use"
 import { Tab, TabContent, TabHeader, TabList, TabTrigger } from "../common/Tab"
@@ -16,12 +26,22 @@ import { TabButton } from "../mcp/configuration/McpConfigurationView"
 import ApiOptions from "./ApiOptions"
 import BrowserSettingsSection from "./BrowserSettingsSection"
 import FeatureSettingsSection from "./FeatureSettingsSection"
-import PreferredLanguageSetting from "./PreferredLanguageSetting" // Added import
+import PreferredLanguageSetting from "./PreferredLanguageSetting"
 import Section from "./Section"
 import SectionHeader from "./SectionHeader"
 import TerminalSettingsSection from "./TerminalSettingsSection"
+import ThirdPartyCodeReviewSettings from "./ThirdPartyCodeReviewSettings"
 import { convertApiConfigurationToProtoApiConfiguration } from "@shared/proto-conversions/state/settings-conversion"
 import { convertChatSettingsToProtoChatSettings } from "@shared/proto-conversions/state/chat-settings-conversion"
+import { ThirdPartyCodeReviewServiceClient } from "@/services/grpc-client"
+import {
+	GetThirdPartyReviewGlobalConfigRequest,
+	UpdateThirdPartyReviewGlobalConfigRequest,
+	GlobalCodeReviewConfig,
+	TestProviderConnectionRequest,
+	ThirdPartyProviderConfig,
+	RateLimits,
+} from "@shared/proto/third_party_code_review"
 const IS_DEV = process.env.IS_DEV
 
 // Styles for the tab system
@@ -65,6 +85,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		icon: CheckCheck,
 	},
 	{
+		id: "code-review",
+		name: "Code Review",
+		tooltipText: "第三方代码审查设置",
+		headerText: "第三方代码审查",
+		icon: Shield,
+	},
+	{
 		id: "browser",
 		name: "Browser",
 		tooltipText: "Browser Settings",
@@ -99,7 +126,7 @@ export const SETTINGS_TABS: SettingsTab[] = [
 	},
 ]
 
-type SettingsViewProps = {
+interface SettingsViewProps {
 	onDone: () => void
 	targetSection?: string
 }
@@ -110,7 +137,100 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// State for the unsaved changes dialog
 	const [isUnsavedChangesDialogOpen, setIsUnsavedChangesDialogOpen] = useState(false)
 	// Store the action to perform after confirmation
-	const pendingAction = useRef<() => void>()
+	const pendingAction = useRef<(() => void) | undefined>(undefined)
+	// Track active tab
+	const [activeTab, setActiveTab] = useState<string>(targetSection || "code-review")
+
+	// 添加第三方代码审查配置状态
+	const [configuredProviders, setConfiguredProviders] = useState<Record<string, ThirdPartyProviderConfig>>({})
+	const [enabledProviders, setEnabledProviders] = useState<string[]>([])
+
+	// 设置初始标签页
+	useEffect(() => {
+		if (targetSection) {
+			console.log("设置目标标签页:", targetSection)
+			setActiveTab(targetSection)
+		}
+	}, [targetSection])
+
+	// 加载第三方代码审查配置
+	useEffect(() => {
+		const loadThirdPartyConfig = async () => {
+			try {
+				console.log("开始加载第三方代码审查配置...")
+				const response = await ThirdPartyCodeReviewServiceClient.getThirdPartyReviewGlobalConfig(
+					GetThirdPartyReviewGlobalConfigRequest.create({}),
+				)
+
+				console.log("获取到的配置响应:", response)
+
+				if (response.config) {
+					let configuredProvidersObj: Record<string, ThirdPartyProviderConfig> = {}
+
+					if (response.config.configuredProviders) {
+						try {
+							console.log("原始配置字符串:", response.config.configuredProviders)
+							const parsedConfig = JSON.parse(response.config.configuredProviders)
+							console.log("解析后的配置:", parsedConfig)
+
+							if (typeof parsedConfig === "object" && parsedConfig !== null) {
+								// 确保每个提供商配置都是ThirdPartyProviderConfig实例
+								Object.entries(parsedConfig).forEach(([key, value]) => {
+									console.log(`处理提供商 ${key} 的配置:`, value)
+									if (value && typeof value === "object") {
+										const config = value as {
+											apiKey?: string
+											endpoint?: string
+											timeout?: number
+											retryAttempts?: number
+											customHeaders?: Record<string, string>
+											rateLimits?: {
+												requestsPerMinute?: number
+												requestsPerDay?: number
+											}
+										}
+
+										configuredProvidersObj[key] = ThirdPartyProviderConfig.create({
+											apiKey: String(config.apiKey || ""),
+											endpoint: String(config.endpoint || ""),
+											timeout: Number(config.timeout || 30),
+											retryAttempts: Number(config.retryAttempts || 3),
+											customHeaders: config.customHeaders || {},
+											rateLimits: RateLimits.create({
+												requestsPerMinute: Number(config.rateLimits?.requestsPerMinute || 60),
+												requestsPerDay: Number(config.rateLimits?.requestsPerDay || 1000),
+											}),
+										})
+										console.log(`创建的提供商配置:`, configuredProvidersObj[key])
+									}
+								})
+							}
+						} catch (error) {
+							console.error("解析配置时出错:", error)
+							console.log("原始配置字符串:", response.config.configuredProviders)
+						}
+					}
+
+					console.log("最终的提供商配置:", configuredProvidersObj)
+					console.log("启用的提供商:", response.config.enabledProviders)
+
+					setConfiguredProviders(configuredProvidersObj)
+					setEnabledProviders(response.config.enabledProviders || [])
+				} else {
+					console.log("没有找到配置，使用默认值")
+					setConfiguredProviders({})
+					setEnabledProviders([])
+				}
+			} catch (error) {
+				console.error("加载第三方代码审查配置失败:", error)
+				setConfiguredProviders({})
+				setEnabledProviders([])
+			}
+		}
+
+		loadThirdPartyConfig()
+	}, [])
+
 	const {
 		apiConfiguration,
 		version,
@@ -161,73 +281,74 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		const apiValidationResult = validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
-		// setApiErrorMessage(apiValidationResult)
-		// setModelIdErrorMessage(modelIdValidationResult)
-
-		let apiConfigurationToSubmit = apiConfiguration
-		if (!apiValidationResult && !modelIdValidationResult) {
-			// vscode.postMessage({ type: "apiConfiguration", apiConfiguration })
-			// vscode.postMessage({
-			// 	type: "telemetrySetting",
-			// 	text: telemetrySetting,
-			// })
-			// console.log("handleSubmit", withoutDone)
-			// vscode.postMessage({
-			// 	type: "separateModeSetting",
-			// 	text: separateModeSetting,
-			// })
-		} else {
-			// if the api configuration is invalid, we don't save it
-			apiConfigurationToSubmit = undefined
-		}
-
 		try {
-			await StateServiceClient.updateSettings(
-				UpdateSettingsRequest.create({
-					planActSeparateModelsSetting,
-					telemetrySetting,
-					enableCheckpointsSetting,
-					mcpMarketplaceEnabled,
-					mcpRichDisplayEnabled,
-					shellIntegrationTimeout,
-					terminalReuseEnabled,
-					mcpResponsesCollapsed,
-					apiConfiguration: apiConfigurationToSubmit
-						? convertApiConfigurationToProtoApiConfiguration(apiConfigurationToSubmit)
-						: undefined,
-					chatSettings: chatSettings ? convertChatSettingsToProtoChatSettings(chatSettings) : undefined,
-					terminalOutputLineLimit,
+			// 保存第三方代码审查配置
+			await ThirdPartyCodeReviewServiceClient.updateThirdPartyReviewGlobalConfig(
+				UpdateThirdPartyReviewGlobalConfigRequest.create({
+					config: GlobalCodeReviewConfig.create({
+						configuredProviders: JSON.stringify(configuredProviders),
+						enabledProviders: enabledProviders,
+					}),
 				}),
 			)
 
-			// Update default terminal profile if it has changed
-			if (defaultTerminalProfile !== originalState.current.defaultTerminalProfile) {
-				await StateServiceClient.updateDefaultTerminalProfile({
-					value: defaultTerminalProfile || "default",
-				} as StringRequest)
+			// 保存其他设置
+			if (!apiValidationResult && !modelIdValidationResult && apiConfiguration) {
+				await StateServiceClient.updateSettings(
+					UpdateSettingsRequest.create({
+						apiConfiguration: convertApiConfigurationToProtoApiConfiguration(apiConfiguration),
+						telemetrySetting,
+						planActSeparateModelsSetting,
+						enableCheckpointsSetting,
+						mcpMarketplaceEnabled,
+						mcpRichDisplayEnabled,
+						mcpResponsesCollapsed,
+						chatSettings: convertChatSettingsToProtoChatSettings(chatSettings),
+						shellIntegrationTimeout,
+						terminalReuseEnabled,
+						terminalOutputLineLimit,
+					}),
+				)
+
+				// Update default terminal profile if it has changed
+				if (defaultTerminalProfile !== originalState.current.defaultTerminalProfile) {
+					await StateServiceClient.updateDefaultTerminalProfile({
+						value: defaultTerminalProfile || "default",
+					} as StringRequest)
+				}
+
+				// Update the original state to reflect the saved changes
+				originalState.current = {
+					apiConfiguration,
+					telemetrySetting,
+					planActSeparateModelsSetting,
+					enableCheckpointsSetting,
+					mcpMarketplaceEnabled,
+					mcpRichDisplayEnabled,
+					mcpResponsesCollapsed,
+					chatSettings,
+					shellIntegrationTimeout,
+					terminalReuseEnabled,
+					terminalOutputLineLimit,
+					defaultTerminalProfile,
+				}
 			}
 
-			// Update the original state to reflect the saved changes
-			originalState.current = {
-				apiConfiguration,
-				telemetrySetting,
-				planActSeparateModelsSetting,
-				enableCheckpointsSetting,
-				mcpMarketplaceEnabled,
-				mcpRichDisplayEnabled,
-				mcpResponsesCollapsed,
-				chatSettings,
-				shellIntegrationTimeout,
-				terminalReuseEnabled,
-				terminalOutputLineLimit,
-				defaultTerminalProfile,
+			setHasUnsavedChanges(false)
+			if (!withoutDone) {
+				onDone()
 			}
 		} catch (error) {
-			console.error("Failed to update settings:", error)
-		}
-
-		if (!withoutDone) {
-			onDone()
+			console.error("Failed to save settings:", error)
+			vscode.postMessage({
+				type: "grpc_request",
+				grpc_request: {
+					service: "ThirdPartyCodeReviewService",
+					method: "updateThirdPartyReviewGlobalConfig",
+					message: {},
+					request_id: "error",
+				},
+			})
 		}
 	}
 
@@ -440,30 +561,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 	}
 
-	// Track active tab
-	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
-
-	// Update active tab when targetSection changes
-	useEffect(() => {
-		if (targetSection) {
-			setActiveTab(targetSection)
-		}
-	}, [targetSection])
-
-	// Enhanced tab change handler with debugging
-	const handleTabChange = useCallback(
-		(tabId: string) => {
-			console.log("Tab change requested:", tabId, "Current:", activeTab)
-			setActiveTab(tabId)
-		},
-		[activeTab],
-	)
-
-	// Debug tab changes
-	useEffect(() => {
-		console.log("Active tab changed to:", activeTab)
-	}, [activeTab])
-
 	// Track whether we're in compact mode
 	const [isCompactMode, setIsCompactMode] = useState(false)
 	const containerRef = useRef<HTMLDivElement>(null)
@@ -486,6 +583,72 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		}
 	}, [])
 
+	// 更新配置的回调函数
+	const onUpdateProviderConfig = async (providerId: string, config: any) => {
+		try {
+			const currentConfig = await ThirdPartyCodeReviewServiceClient.getThirdPartyReviewGlobalConfig(
+				GetThirdPartyReviewGlobalConfigRequest.create({}),
+			)
+
+			let configuredProvidersObj: Record<string, any> = {}
+			if (currentConfig.config?.configuredProviders) {
+				try {
+					configuredProvidersObj = JSON.parse(currentConfig.config.configuredProviders)
+				} catch (error) {
+					console.error("解析当前配置失败:", error)
+				}
+			}
+
+			// 确保配置对象可以序列化
+			const serializableConfig = {
+				apiKey: config.apiKey || "",
+				endpoint: config.endpoint || "",
+				timeout: Number(config.timeout || 30),
+				retryAttempts: Number(config.retryAttempts || 3),
+				customHeaders: config.customHeaders || {},
+				rateLimits: config.rateLimits
+					? {
+							requestsPerMinute: Number(config.rateLimits.requestsPerMinute || 60),
+							requestsPerDay: Number(config.rateLimits.requestsPerDay || 1000),
+						}
+					: undefined,
+			}
+
+			const newConfiguredProviders = {
+				...configuredProvidersObj,
+				[providerId]: serializableConfig,
+			}
+
+			console.log("更新配置:", {
+				providerId,
+				config: serializableConfig,
+				newConfiguredProviders,
+			})
+
+			const response = await ThirdPartyCodeReviewServiceClient.updateThirdPartyReviewGlobalConfig(
+				UpdateThirdPartyReviewGlobalConfigRequest.create({
+					config: GlobalCodeReviewConfig.create({
+						configuredProviders: JSON.stringify(newConfiguredProviders),
+						enabledProviders: currentConfig.config?.enabledProviders || [],
+					}),
+				}),
+			)
+
+			if (!response.success) {
+				throw new Error(response.errorMessage || "更新失败")
+			}
+
+			// 更新本地状态
+			setConfiguredProviders((prev) => ({
+				...prev,
+				[providerId]: ThirdPartyProviderConfig.create(serializableConfig),
+			}))
+		} catch (error) {
+			console.error("更新提供商配置失败:", error)
+			throw error
+		}
+	}
+
 	return (
 		<Tab>
 			<TabHeader className="flex justify-between items-center gap-2">
@@ -505,11 +668,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			{/* Vertical tabs layout */}
 			<div ref={containerRef} className={`${settingsTabsContainer} ${isCompactMode ? "narrow" : ""}`}>
 				{/* Tab sidebar */}
-				<TabList
-					value={activeTab}
-					onValueChange={handleTabChange}
-					className={settingsTabList}
-					data-compact={isCompactMode}>
+				<TabList value={activeTab} onValueChange={setActiveTab} className={settingsTabList} data-compact={isCompactMode}>
 					{SETTINGS_TABS.map((tab) =>
 						isCompactMode ? (
 							<HeroTooltip key={tab.id} content={tab.tooltipText} placement="right">
@@ -524,7 +683,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									data-value={tab.id}
 									onClick={() => {
 										console.log("Compact tab clicked:", tab.id)
-										handleTabChange(tab.id)
+										setActiveTab(tab.id)
 									}}>
 									<div className={`flex items-center gap-2 ${isCompactMode ? "justify-center" : ""}`}>
 										<tab.icon className="w-4 h-4" />
@@ -700,6 +859,108 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									{renderSectionHeader("terminal")}
 									<Section>
 										<TerminalSettingsSection />
+									</Section>
+								</div>
+							)}
+
+							{/* Code Review Settings Tab */}
+							{activeTab === "code-review" && (
+								<div>
+									{renderSectionHeader("code-review")}
+									<Section>
+										<ThirdPartyCodeReviewSettings
+											configuredProviders={configuredProviders}
+											enabledProviders={enabledProviders}
+											onUpdateProviderConfig={onUpdateProviderConfig}
+											onEnableProvider={async (providerId, enabled) => {
+												try {
+													const currentConfig =
+														await ThirdPartyCodeReviewServiceClient.getThirdPartyReviewGlobalConfig(
+															GetThirdPartyReviewGlobalConfigRequest.create({}),
+														)
+
+													const currentEnabled = currentConfig.config?.enabledProviders || []
+													const newEnabled = enabled
+														? [
+																...currentEnabled.filter((id: string) => id !== providerId),
+																providerId,
+															]
+														: currentEnabled.filter((id: string) => id !== providerId)
+
+													const response =
+														await ThirdPartyCodeReviewServiceClient.updateThirdPartyReviewGlobalConfig(
+															UpdateThirdPartyReviewGlobalConfigRequest.create({
+																config: GlobalCodeReviewConfig.create({
+																	configuredProviders:
+																		currentConfig.config?.configuredProviders || "{}",
+																	enabledProviders: newEnabled,
+																}),
+															}),
+														)
+
+													if (!response.success) {
+														throw new Error(response.errorMessage || "更新失败")
+													}
+
+													// 更新本地状态
+													setEnabledProviders(newEnabled)
+												} catch (error) {
+													console.error("启用/禁用提供商失败:", error)
+													throw error
+												}
+											}}
+											onRemoveProvider={async (providerId) => {
+												try {
+													const currentConfig =
+														await ThirdPartyCodeReviewServiceClient.getThirdPartyReviewGlobalConfig(
+															GetThirdPartyReviewGlobalConfigRequest.create({}),
+														)
+
+													const configuredProvidersObj = currentConfig.config?.configuredProviders
+														? JSON.parse(currentConfig.config.configuredProviders)
+														: {}
+
+													delete configuredProvidersObj[providerId]
+
+													const response =
+														await ThirdPartyCodeReviewServiceClient.updateThirdPartyReviewGlobalConfig(
+															UpdateThirdPartyReviewGlobalConfigRequest.create({
+																config: GlobalCodeReviewConfig.create({
+																	configuredProviders: JSON.stringify(configuredProvidersObj),
+																	enabledProviders: (
+																		currentConfig.config?.enabledProviders || []
+																	).filter((id: string) => id !== providerId),
+																}),
+															}),
+														)
+
+													if (!response.success) {
+														throw new Error(response.errorMessage || "删除失败")
+													}
+
+													// 更新本地状态
+													setConfiguredProviders(configuredProvidersObj)
+													setEnabledProviders((prev) => prev.filter((id) => id !== providerId))
+												} catch (error) {
+													console.error("删除提供商失败:", error)
+													throw error
+												}
+											}}
+											onTestConnection={async (providerId) => {
+												try {
+													const response =
+														await ThirdPartyCodeReviewServiceClient.testProviderConnection(
+															TestProviderConnectionRequest.create({
+																providerId,
+															}),
+														)
+													return response.status
+												} catch (error) {
+													console.error("测试连接失败:", error)
+													throw error
+												}
+											}}
+										/>
 									</Section>
 								</div>
 							)}

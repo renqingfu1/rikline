@@ -49,6 +49,7 @@ const serviceNameMap = {
 	models: "cline.ModelsService",
 	slash: "cline.SlashService",
 	ui: "cline.UiService",
+	third_party_code_review: "cline.ThirdPartyCodeReviewService",
 	// Add new services here - no other code changes needed!
 }
 const serviceDirs = Object.keys(serviceNameMap).map((serviceKey) => path.join(ROOT_DIR, "src/core/controller", serviceKey))
@@ -149,7 +150,11 @@ async function generateGrpcClientConfig() {
 
 	// Process each service in the serviceNameMap
 	for (const [dirName, _fullServiceName] of Object.entries(serviceNameMap)) {
-		const capitalizedName = dirName.charAt(0).toUpperCase() + dirName.slice(1)
+		// 将下划线命名转换为驼峰命名
+		const capitalizedName = dirName
+			.split("_")
+			.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+			.join("")
 
 		// Add import statement
 		serviceImports.push(`import { ${capitalizedName}ServiceDefinition } from "@shared/proto/${dirName}"`)

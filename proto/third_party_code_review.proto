@@ -1,0 +1,163 @@
+syntax = "proto3";
+package cline;
+option java_package = "bot.cline.proto";
+option java_multiple_files = true;
+
+import "common.proto";
+
+service ThirdPartyCodeReviewService {
+  rpc getAvailableProviders(GetAvailableProvidersRequest) returns (GetAvailableProvidersResponse);
+  rpc getConfiguredProviders(GetConfiguredProvidersRequest) returns (GetConfiguredProvidersResponse);
+  rpc updateProviderConfig(UpdateProviderConfigRequest) returns (UpdateProviderConfigResponse);
+  rpc enableProvider(EnableProviderRequest) returns (EnableProviderResponse);
+  rpc removeProvider(RemoveProviderRequest) returns (RemoveProviderResponse);
+  rpc testProviderConnection(TestProviderConnectionRequest) returns (TestProviderConnectionResponse);
+  rpc validateConfigField(ValidateConfigFieldRequest) returns (ValidateConfigFieldResponse);
+  
+  // 全局配置相关方法
+  rpc getThirdPartyReviewGlobalConfig(GetThirdPartyReviewGlobalConfigRequest) returns (GetThirdPartyReviewGlobalConfigResponse);
+  rpc updateThirdPartyReviewGlobalConfig(UpdateThirdPartyReviewGlobalConfigRequest) returns (UpdateThirdPartyReviewGlobalConfigResponse);
+}
+
+// Requests
+message GetAvailableProvidersRequest {
+  Metadata metadata = 1;
+}
+
+message GetConfiguredProvidersRequest {
+  Metadata metadata = 1;
+}
+
+message UpdateProviderConfigRequest {
+  Metadata metadata = 1;
+  string provider_id = 2;
+  ThirdPartyProviderConfig config = 3;
+}
+
+message EnableProviderRequest {
+  Metadata metadata = 1;
+  string provider_id = 2;
+  bool enabled = 3;
+}
+
+message RemoveProviderRequest {
+  Metadata metadata = 1;
+  string provider_id = 2;
+}
+
+message TestProviderConnectionRequest {
+  Metadata metadata = 1;
+  string provider_id = 2;
+}
+
+message ValidateConfigFieldRequest {
+  Metadata metadata = 1;
+  string provider_id = 2;
+  string field_name = 3;
+  string field_value = 4;
+}
+
+// Responses
+message GetAvailableProvidersResponse {
+  repeated ProviderConfigTemplate providers = 1;
+}
+
+message GetConfiguredProvidersResponse {
+  map<string, ThirdPartyProviderConfig> providers = 1;
+  repeated string enabled_providers = 2;
+}
+
+message UpdateProviderConfigResponse {
+  bool success = 1;
+  optional string error_message = 2;
+}
+
+message EnableProviderResponse {
+  bool success = 1;
+  optional string error_message = 2;
+}
+
+message RemoveProviderResponse {
+  bool success = 1;
+  optional string error_message = 2;
+}
+
+message TestProviderConnectionResponse {
+  ProviderHealthStatus status = 1;
+}
+
+message ValidateConfigFieldResponse {
+  bool is_valid = 1;
+  optional string error_message = 2;
+}
+
+// 第三方代码审查提供商配置
+message ThirdPartyProviderConfig {
+  optional string api_key = 1;
+  optional string endpoint = 2;
+  optional int32 timeout = 3;
+  optional int32 retry_attempts = 4;
+  map<string, string> custom_headers = 5;
+  optional RateLimits rate_limits = 6;
+}
+
+// 速率限制配置
+message RateLimits {
+  int32 requests_per_minute = 1;
+  int32 requests_per_day = 2;
+}
+
+// 提供商模板信息
+message ProviderConfigTemplate {
+  string provider_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string supported_languages = 4;
+  repeated string supported_features = 5;
+  repeated string required_config = 6;
+  repeated string optional_config = 7;
+  ThirdPartyProviderConfig config_example = 8;
+  optional string documentation_url = 9;
+}
+
+// 提供商健康状态
+message ProviderHealthStatus {
+  bool is_healthy = 1;
+  int32 response_time = 2;
+  string last_checked = 3;
+  optional string error_message = 4;
+}
+
+// 全局第三方代码审查配置
+message GlobalCodeReviewConfig {
+  string configured_providers = 1;  // JSON string of configured providers
+  repeated string enabled_providers = 2;
+}
+
+// 全局配置相关消息
+message GetThirdPartyReviewGlobalConfigRequest {
+  Metadata metadata = 1;
+}
+
+message GetThirdPartyReviewGlobalConfigResponse {
+  bool success = 1;
+  optional string error_message = 2;
+  optional GlobalCodeReviewConfig config = 3;
+}
+
+message UpdateThirdPartyReviewGlobalConfigRequest {
+  Metadata metadata = 1;
+  GlobalCodeReviewConfig config = 2;
+}
+
+message UpdateThirdPartyReviewGlobalConfigResponse {
+  bool success = 1;
+  optional string error_message = 2;
+}
+
+// 控制器消息定义
+message Controller {
+  // 控制器相关字段
+  string id = 1;
+  // 可以根据需要添加更多字段
+} 

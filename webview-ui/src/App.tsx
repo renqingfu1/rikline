@@ -57,7 +57,7 @@ const AppContent = () => {
 				<WelcomeView />
 			) : (
 				<>
-					{showSettings && <SettingsView onDone={hideSettings} />}
+					{showSettings && <SettingsView onDone={hideSettings} targetSection="code-review" />}
 					{showHistory && <HistoryView onDone={hideHistory} />}
 					{showMcp && <McpView initialTab={mcpTab} onDone={closeMcpView} />}
 					{showAccount && <AccountView onDone={hideAccount} />}

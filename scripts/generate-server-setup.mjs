@@ -14,6 +14,14 @@ const healthDef = protoLoader.loadSync(health.protoPath)
 const packageDefinition = { ...clineDef, ...healthDef }
 const proto = grpc.loadPackageDefinition(packageDefinition)
 
+function camelToSnakeCase(str) {
+	return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`).replace(/^_/, "")
+}
+
+function snakeToCamelCase(str) {
+	return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+}
+
 /**
  * Generate imports and function to add all the handlers to the server for all services defined in the proto files.
  */
@@ -26,7 +34,8 @@ function generateHandlersAndExports() {
 			continue
 		}
 		const domain = name.replace(/Service$/, "")
-		const dir = domain.charAt(0).toLowerCase() + domain.slice(1)
+		const dir = camelToSnakeCase(domain)
+		const handlerPrefix = snakeToCamelCase(dir)
 		imports.push(`// ${domain} Service`)
 		handlerSetup.push(`    // ${domain} Service`)
 		handlerSetup.push(`    server.addService(cline.${name}Service, {`)
