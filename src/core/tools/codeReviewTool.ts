@@ -9,10 +9,8 @@ import {
 	CodeReviewType,
 	SeverityLevel,
 } from "../../services/code-review/CodeReviewService"
-import { ApiConfiguration } from "../../shared/api"
 import * as path from "path"
 import * as vscode from "vscode"
-import { ApiProvider } from "../../shared/api"
 
 // 导出事件名称常量
 export const CODE_REVIEW_EVENTS = {
@@ -174,23 +172,7 @@ export async function executeCodeReview(
 			providers: thirdPartyProviders,
 		})
 
-		const extension = vscode.extensions.getExtension("rikaaa0928.riklina")
-		if (!extension) {
-			throw new Error("Riklina extension not found")
-		}
-
-		await extension.activate()
-		const extensionState = await extension.exports.getStateToPostToWebview()
-		if (!extensionState?.apiConfiguration) {
-			throw new Error("API configuration not found. Please configure your API settings in Riklina.")
-		}
-
-		const effectiveApiConfiguration: ApiConfiguration = {
-			...extensionState.apiConfiguration,
-			taskId: Date.now().toString(),
-		}
-
-		const service = CodeReviewService.getInstance(effectiveApiConfiguration)
+		const service = CodeReviewService.getInstance()
 
 		// 配置第三方提供商（如果启用）
 		if (enableThirdParty) {

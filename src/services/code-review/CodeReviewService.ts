@@ -1,9 +1,6 @@
 import * as vscode from "vscode"
 import * as fs from "fs"
 import * as path from "path"
-import { ApiHandler, buildApiHandler } from "../../api"
-import { ApiConfiguration } from "../../shared/api"
-import { Anthropic } from "@anthropic-ai/sdk"
 
 // 第三方代码审查接口标准规范
 export interface ThirdPartyCodeReviewProvider {
@@ -502,12 +499,10 @@ export class SonarQubeProvider implements ThirdPartyCodeReviewProvider {
 export class CodeReviewService {
 	private static instance: CodeReviewService
 	private supportedLanguages: Map<string, SupportedLanguage>
-	private apiHandler: ApiHandler
 	private thirdPartyProviders: Map<string, ThirdPartyCodeReviewProvider>
 
-	private constructor(config: ApiConfiguration) {
+	private constructor() {
 		this.supportedLanguages = new Map()
-		this.apiHandler = buildApiHandler(config)
 		this.thirdPartyProviders = new Map()
 		this.initializeSupportedLanguages()
 		this.initializeDefaultProviders()
@@ -560,15 +555,11 @@ export class CodeReviewService {
 		this.thirdPartyProviders.set(sonarQubeProvider.providerId, sonarQubeProvider)
 	}
 
-	public static getInstance(config: ApiConfiguration): CodeReviewService {
+	public static getInstance(): CodeReviewService {
 		if (!CodeReviewService.instance) {
-			CodeReviewService.instance = new CodeReviewService(config)
+			CodeReviewService.instance = new CodeReviewService()
 		}
 		return CodeReviewService.instance
-	}
-
-	public updateApiConfiguration(config: ApiConfiguration) {
-		this.apiHandler = buildApiHandler(config)
 	}
 
 	// 注册第三方提供商
@@ -612,10 +603,6 @@ export class CodeReviewService {
 
 			const issues: CodeIssue[] = []
 			const thirdPartyResults: ThirdPartyAnalysisResult[] = []
-
-			// 使用AI进行代码分析
-			const aiIssues = await this.performAIAnalysis(content, filePath, language)
-			issues.push(...aiIssues)
 
 			// 使用第三方提供商进行分析
 			if (options?.enableThirdParty) {
@@ -789,61 +776,6 @@ export class CodeReviewService {
 
 		await scan(dirPath)
 		return files
-	}
-
-	private async performAIAnalysis(content: string, filePath: string, language: SupportedLanguage): Promise<CodeIssue[]> {
-		try {
-			const systemPrompt = `你是一个专业的代码审查专家。请分析以下${language.name}代码，找出潜在的问题，包括：
-1. 代码质量问题
-2. 安全漏洞
-3. 性能问题
-4. 可维护性问题
-5. 最佳实践违规
-
-请以JSON格式返回分析结果，格式如下：
-{
-    "issues": [
-        {
-            "type": "quality|security|performance|style|bug",
-            "severity": "low|medium|high|critical",
-            "message": "问题描述",
-            "line": 行号,
-            "suggestion": "改进建议"
-        }
-    ]
-}`
-
-			const stream = this.apiHandler.createMessage(systemPrompt, [
-				{
-					role: "user",
-					content: content,
-				},
-			] as Anthropic.Messages.MessageParam[])
-
-			let response = ""
-			for await (const chunk of stream) {
-				response += chunk
-			}
-
-			try {
-				const result = JSON.parse(response)
-				if (result.issues && Array.isArray(result.issues)) {
-					return result.issues.map((issue: any) => ({
-						...issue,
-						type: this.mapLegacyType(issue.type),
-						severity: this.mapLegacySeverity(issue.severity),
-						file: filePath,
-						source: "AI",
-					}))
-				}
-			} catch (e) {
-				console.error("Failed to parse AI response:", e)
-			}
-		} catch (error) {
-			console.error("AI analysis failed:", error)
-		}
-
-		return []
 	}
 
 	private mapLegacyType(legacyType: string): CodeReviewType {
